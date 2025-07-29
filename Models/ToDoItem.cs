@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace minimal_api_todolist.Models;
 
@@ -7,6 +8,7 @@ public class ToDoItem
     public int Id { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime DueDate { get; set; }
+    [Required(ErrorMessage = "You need to add a title")]
     public string Title { get; set; }
     public string Description { get; set; }
     public string Assignee { get; set; }

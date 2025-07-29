@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using minimal_api_todolist.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +13,17 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.Use(async (context, next) =>
+{
+    Console.WriteLine(
+        $"Request: {context.Request.Method} {context.Request.Path}"
+    );
+    await next(context);
+    Console.WriteLine(
+        $"Response: {context.Response.StatusCode}"
+    );
+});
+
 List<ToDoItem> toDoItems = new List<ToDoItem>();
 
 app.MapGet("/todoitems", () =>
@@ -21,9 +33,16 @@ app.MapGet("/todoitems", () =>
 
 app.MapPost("/todoitems", (ToDoItem item) =>
 {
+    var validationResults = new List<ValidationResult>();
+    var validationContext = new ValidationContext(item);
+    bool isValid = Validator.TryValidateObject(item, validationContext, validationResults, true);
+    if (!isValid)
+    {
+        return Results.BadRequest(validationResults);
+    }
     toDoItems.Add(item);
     return Results.Created();
-});
+}).AddEndpointFilter<CreateTodoFilter>();
 
 app.MapPut("/todotiems", (ToDoItem item) =>
 {
@@ -69,3 +88,17 @@ app.MapDelete("/todoitems/{id:int:range(1,1000)}", (int id) =>
 });
 
 app.Run();
+
+public class CreateTodoFilter : IEndpointFilter
+{
+    public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    {
+        var todoitem = context.GetArgument<ToDoItem>(0);
+        if (todoitem.Assignee == "Joe Bloggs")
+        {
+            return Results.Problem("Joe Bloggs cannot be assigned a todoitem");
+        }
+        // Call the next filter/middleware in the pipeline
+        return await next(context);
+    }
+}
