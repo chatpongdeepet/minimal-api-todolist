@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Runtime.CompilerServices;
 using minimal_api_todolist.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,7 +14,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.Use(async (context, next) =>
+/* app.Use(async (context, next) =>
 {
     Console.WriteLine(
         $"Request: {context.Request.Method} {context.Request.Path}"
@@ -22,9 +23,19 @@ app.Use(async (context, next) =>
     Console.WriteLine(
         $"Response: {context.Response.StatusCode}"
     );
-});
+}); */
+var _blockedIPs = new List<string>
+{
+"192.168.1.1",
+"203.0.113.0",
+// "::1"
+};
+
+app.UseMiddleware<LoggingMiddleware>();
+app.UseMiddleware<IPBlockingMiddleware>(_blockedIPs);
 
 List<ToDoItem> toDoItems = new List<ToDoItem>();
+
 
 app.MapGet("/todoitems", () =>
 {
@@ -100,5 +111,77 @@ public class CreateTodoFilter : IEndpointFilter
         }
         // Call the next filter/middleware in the pipeline
         return await next(context);
+    }
+}
+
+public class LoggingMiddleware
+{
+    private readonly RequestDelegate _next;
+
+    public LoggingMiddleware(RequestDelegate next)
+    {
+        _next = next;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+
+        Console.WriteLine(
+            $"Request: {context.Request.Method} {context.Request.Path}"
+        );
+        await _next(context);
+        Console.WriteLine(
+            $"Response: {context.Response.StatusCode}"
+        );
+    }
+}
+
+public class IPBlockingMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly HashSet<string> _blockedIPs;
+    public IPBlockingMiddleware(RequestDelegate next, IEnumerable<string> blockedIPs)
+    {
+        _next = next;
+        _blockedIPs = new HashSet<string>(blockedIPs);
+    }
+    public async Task InvokeAsync(HttpContext context)
+    {
+        var requestIP = context.Connection.RemoteIpAddress?.ToString();
+        if (requestIP != null && _blockedIPs.Contains(requestIP))
+        {
+            context.Response.StatusCode = 403;
+            Console.WriteLine($"IP {requestIP} is blocked");
+            await context.Response.WriteAsync("Your IP is blocked.");
+            return;
+        }
+        Console.WriteLine($"IP {requestIP ?? "Unknown"} is allowed.");
+        await _next(context);
+    }
+}
+
+public class ExceptionHandlingMiddleware
+{
+    private readonly RequestDelegate _next;
+
+    public ExceptionHandlingMiddleware(
+        RequestDelegate next
+    )
+    {
+        _next = next;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        try
+        {
+            await _next(context);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception caught: {ex.Message}");
+            context.Response.StatusCode = 500;
+            await context.Response.WriteAsync("An unexpected error occurred");
+        }
     }
 }
