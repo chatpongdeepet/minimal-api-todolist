@@ -1,0 +1,40 @@
+# Build results
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code settings
+.vscode/
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# Dotnet CLI
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# NuGet packages
+*.nupkg
+*.snupkg
+*.nuspec
+packages/
+*.psmdcp
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Others
+*.swp
+*.tmp
+
+# Rider
