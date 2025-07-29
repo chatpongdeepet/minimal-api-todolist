@@ -1,10 +1,13 @@
 using System.ComponentModel.DataAnnotations;
 using System.Runtime.CompilerServices;
+using Microsoft.AspNetCore.Mvc;
+using minimal_api_todolist;
 using minimal_api_todolist.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddSingleton<TodoItemService>();
 
 var app = builder.Build();
 
@@ -31,18 +34,71 @@ var _blockedIPs = new List<string>
 // "::1"
 };
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<LoggingMiddleware>();
 app.UseMiddleware<IPBlockingMiddleware>(_blockedIPs);
 
 List<ToDoItem> toDoItems = new List<ToDoItem>();
 
 
-app.MapGet("/todoitems", () =>
+/* app.MapGet("/todoitems", (HttpRequest request) =>
 {
-    return Results.Ok(toDoItems);
+    bool pastDue = false;
+    int priority = 0;
+
+    var todoItemsQuery = toDoItems.AsQueryable();
+
+    if (request.Query.ContainsKey("pastDue"))
+    {
+        var parseDueDate = bool.TryParse(request.Query["pastDue"], out pastDue);
+        if (parseDueDate)
+        {
+            todoItemsQuery = todoItemsQuery.Where(x => x.DueDate <= DateTime.Now);
+        }
+    }
+    if (request.Query.ContainsKey("priority"))
+    {
+        var parsePriority = int.TryParse(request.Query["priority"], out priority);
+        if (parsePriority)
+        {
+            todoItemsQuery = todoItemsQuery.Where(x => x.Priority == priority);
+        }
+    }
+    var result = todoItemsQuery.ToList();
+    return Results.Ok(result);
+}); */
+
+
+// DEPENDENCY INJECTION
+app.MapGet(
+ "/todoItems",
+ ([FromQuery(Name = "pastDue")] bool pastDue,
+ [FromQuery(Name = "priority")] int priority,
+ [FromServices] TodoItemService todoItemService) =>
+{
+    var result = todoItemService.GetToDoItems(pastDue, priority);
+    return Results.Ok(result);
 });
 
-app.MapPost("/todoitems", (ToDoItem item) =>
+// QUERY ATTRIBUTE
+/* app.MapGet("/todoitems", ([FromQuery(Name = "pastDue")] bool pastDue,
+[FromQuery(Name = "priority")] int priority) =>
+{
+    var todoItemsQuery = toDoItems.AsQueryable();
+
+    if (pastDue)
+    {
+        todoItemsQuery = todoItemsQuery.Where(x => x.DueDate <= DateTime.Now);
+    }
+    if (priority > 0)
+    {
+        todoItemsQuery = todoItemsQuery.Where(x => x.Priority == priority);
+    }
+    var result = todoItemsQuery.ToList();
+    return Results.Ok(result);
+}); */
+
+/* app.MapPost("/todoitems", (ToDoItem item) =>
 {
     var validationResults = new List<ValidationResult>();
     var validationContext = new ValidationContext(item);
@@ -53,7 +109,7 @@ app.MapPost("/todoitems", (ToDoItem item) =>
     }
     toDoItems.Add(item);
     return Results.Created();
-}).AddEndpointFilter<CreateTodoFilter>();
+}).AddEndpointFilter<CreateTodoFilter>(); */
 
 app.MapPut("/todotiems", (ToDoItem item) =>
 {
@@ -66,9 +122,24 @@ app.MapPut("/todotiems", (ToDoItem item) =>
     return Results.NoContent();
 });
 
-app.MapPatch("/updateTodoItemDueDate/{id}", (int id, DateTime newDueDate) =>
+/* app.MapPatch("/updateTodoItemDueDate/{id}", (int id, DateTime newDueDate) =>
 {
     var index = toDoItems.FindIndex(x => x.Id == id);
+    if (index == -1)
+    {
+        return Results.NotFound();
+    }
+    toDoItems[index].DueDate = newDueDate;
+    return Results.NoContent();
+}); */
+app.MapPatch("/updateTodoItemDueDate", async (HttpRequest request) =>
+{
+    var formData = await request.ReadFormAsync();
+    var id = int.Parse(formData["Id"]);
+    var newDueDate = DateTime.Parse(formData["newDueDate"]);
+
+    var index = toDoItems.FindIndex(x => x.Id == id);
+
     if (index == -1)
     {
         return Results.NotFound();
